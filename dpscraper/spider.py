@@ -5,8 +5,8 @@ import scrapy
 from scrapy.http import HtmlResponse  # NOQA
 
 
-class DistrictSpider(scrapy.Spider):
-    name = 'district'
+class DPSpider(scrapy.Spider):
+    name = 'dp'
     start_urls = [
         'http://www.dianping.com/search/category/1/10/r2865g10',
     ]
