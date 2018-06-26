@@ -2,10 +2,13 @@
 from __future__ import absolute_import, unicode_literals
 
 import logging
+import random
 
 import scrapy
 from scrapy.crawler import CrawlerProcess
 from scrapy.http import HtmlResponse  # NOQA
+
+logger = logging.getLogger(__name__)
 
 
 def re_crawl(func):
@@ -16,14 +19,13 @@ def re_crawl(func):
         :type spider: DPSpider
         :type response: HtmlResponse
         """
-        print(response.headers)
+        cookies = get_cookies(response.headers.getlist('Set-Cookie') or [])
         if not response.text and response.url not in crawled:
             logging.warning('empty url: {}'.format(response.url))
             crawled.add(response.url)
-            yield response.follow('http://www.dianping.com/', spider.parse_index)
-            yield response.follow(response.url, spider.parse_shop)
+            yield response.follow(response.url, spider.parse_shop, dont_filter=True, cookies=cookies)
         else:
-            yield func(spider, response)
+            yield from func(spider, response)
 
     return wrapper
 
@@ -55,9 +57,9 @@ class DPSpider(scrapy.Spider):
         :type response: HtmlResponse
         """
         cookies = get_cookies(response.headers.getlist('Set-Cookie') or [])
-        print(cookies)
         urls = response.xpath(
             '//div[@class="content"]/div/ul/li/div[@class="txt"]/div[@class="tit"]/a[@data-hippo-type="shop"]/@href')
+        logger.info(urls.extract())
         # for shop_url in urls:  # type: scrapy.Selector
         #     if 'shop/98376730' in shop_url.extract():  # see http://www.dianping.com/robots.txt
         #         continue
@@ -102,12 +104,20 @@ class DPSpider(scrapy.Spider):
 
 
 if __name__ == '__main__':
-    user_agent = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36'
+    user_agents = [
+        'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)',
+        'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0)',
+        'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)',
+        'Opera/9.80 (Macintosh; Intel Mac OS X 10.6.8; U; en) Presto/2.8.131 Version/11.11',
+        'Opera/9.80 (Windows NT 6.1; U; en) Presto/2.8.131 Version/11.11',
+    ]
+    user_agent = random.choice(user_agents)
+    logger.info(user_agent)
     process = CrawlerProcess({
-        'DOWNLOAD_DELAY': 0.1,
+        'DOWNLOAD_DELAY': 0.5,
         'ITEM_PIPELINES': {'__main__.DPPipeline': 1},
         'USER_AGENT': user_agent,
     })
     process.crawl(DPSpider)
     process.start()
-    print(DPPipeline.results)
+    logger.info(DPPipeline.results)
